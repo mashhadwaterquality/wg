@@ -2,12 +2,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: './', // CRITICAL: Ensures assets are loaded correctly on GitHub Pages sub-paths
+  base: './', // Ensures assets load correctly on GitHub Pages sub-folders
   define: {
-    // Injects the API key into the client bundle at build time
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY),
   },
   build: {
@@ -21,9 +19,6 @@ export default defineConfig({
           'vendor-charts': ['recharts'],
           'vendor-maps': ['leaflet', 'react-leaflet'],
         },
-        assetFileNames: 'assets/[name]-[hash][extname]',
-        chunkFileNames: 'assets/[name]-[hash].js',
-        entryFileNames: 'assets/[name]-[hash].js',
       }
     }
   },

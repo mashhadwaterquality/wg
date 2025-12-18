@@ -1,3 +1,4 @@
+
 import { StatResult } from '../types';
 
 function getZPercentile(p: number): number {
@@ -85,6 +86,81 @@ export const calculateStats = (data: number[]): StatResult | null => {
     jarqueBera: jb,
     isNormal
   };
+};
+
+export const calculateCorrelation = (x: number[], y: number[]): number => {
+  const n = x.length;
+  if (n !== y.length || n < 2) return 0;
+  
+  const meanX = x.reduce((a, b) => a + b, 0) / n;
+  const meanY = y.reduce((a, b) => a + b, 0) / n;
+  
+  let num = 0;
+  let denX = 0;
+  let denY = 0;
+  
+  for (let i = 0; i < n; i++) {
+    const dx = x[i] - meanX;
+    const dy = y[i] - meanY;
+    num += dx * dy;
+    denX += dx * dx;
+    denY += dy * dy;
+  }
+  
+  const den = Math.sqrt(denX) * Math.sqrt(denY);
+  return den === 0 ? 0 : num / den;
+};
+
+export const calculateBenfordAnalysis = (data: number[]) => {
+  const expected = [0, 30.1, 17.6, 12.5, 9.7, 7.9, 6.7, 5.8, 5.1, 4.6];
+  const actual = Array(10).fill(0);
+  let count = 0;
+
+  data.forEach(val => {
+    const s = Math.abs(val).toString().replace(/[0.]/g, '');
+    if (s.length > 0) {
+      const firstDigit = parseInt(s[0]);
+      if (firstDigit >= 0 && firstDigit <= 9) {
+        actual[firstDigit]++;
+        count++;
+      }
+    }
+  });
+
+  if (count === 0) return [];
+
+  return actual.map((val, i) => ({
+    digit: i,
+    actual: (val / count) * 100,
+    expected: expected[i]
+  })).slice(1);
+};
+
+export const calculateLastDigitDistribution = (data: number[]) => {
+  const counts = Array(10).fill(0);
+  let total = 0;
+
+  data.forEach(val => {
+    const str = val.toFixed(2);
+    const lastDigit = parseInt(str[str.length - 1]);
+    if (!isNaN(lastDigit)) {
+      counts[lastDigit]++;
+      total++;
+    }
+  });
+
+  if (total === 0) return [];
+  return counts.map((count, digit) => ({
+    digit,
+    frequency: (count / total) * 100,
+    ideal: 10 // Ideal random distribution is 10% each
+  }));
+};
+
+export const calculateZScores = (data: number[]) => {
+  const stats = calculateStats(data);
+  if (!stats) return [];
+  return data.map(val => (val - stats.mean) / (stats.stdDev || 1));
 };
 
 export const calculateQQData = (data: number[]) => {

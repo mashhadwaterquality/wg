@@ -24,6 +24,21 @@ export interface WaterSample {
   notes?: string;
 }
 
+export interface IntegrityFlag {
+  type: 'speed' | 'frequency' | 'identical' | 'static';
+  severity: 'low' | 'medium' | 'high';
+  message: string;
+}
+
+export interface SamplerPerformance {
+  samplerId: SamplerID;
+  totalSamples: number;
+  avgTimeInterval: number; // minutes
+  avgDistance: number; // meters
+  integrityScore: number; // 0-100
+  flagsCount: number;
+}
+
 export interface StatResult {
   mean: number;
   median: number;
