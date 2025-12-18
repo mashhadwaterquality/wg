@@ -1,0 +1,7 @@
+{
+  "name": "AquaGuard Tracker",
+  "description": "Professional water quality monitoring system with geolocation, analytics, and mapping.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
