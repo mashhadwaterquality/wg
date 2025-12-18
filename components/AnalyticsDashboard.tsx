@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, 
@@ -5,7 +6,8 @@ import {
 } from 'recharts';
 import { WaterSample, MetricKey, METRIC_LABELS } from '../types';
 import { calculateStats, calculateQQData } from '../utils/statistics';
-import { Calculator, Activity, BarChart3, TrendingUp } from 'lucide-react';
+import { Calculator, Activity, BarChart3, TrendingUp, Sparkles, Loader2 } from 'lucide-react';
+import { GoogleGenAI } from '@google/genai';
 
 interface AnalyticsProps {
   samples: WaterSample[];
@@ -13,6 +15,8 @@ interface AnalyticsProps {
 
 const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
   const [selectedMetric, setSelectedMetric] = useState<MetricKey>('chlorine');
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const dataValues = useMemo(() => samples.map(s => s.metrics[selectedMetric]), [samples, selectedMetric]);
   const stats = useMemo(() => calculateStats(dataValues), [dataValues]);
@@ -44,6 +48,31 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
       }));
   }, [samples, selectedMetric]);
 
+  const getAIInsight = async () => {
+    if (!stats) return;
+    setIsAnalyzing(true);
+    try {
+      // Fix: Initialize GoogleGenAI using direct process.env.API_KEY as per guidelines
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const prompt = `As a water quality expert, analyze these statistics for ${METRIC_LABELS[selectedMetric]}:
+      Mean: ${stats.mean}, Median: ${stats.median}, StdDev: ${stats.stdDev}, Min: ${stats.min}, Max: ${stats.max}, Normal Distribution: ${stats.isNormal}.
+      Provide a concise 3-sentence insight in Persian about the quality and stability of the water based on these numbers. Focus on safety and trends.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+      });
+
+      // Fix: Access response.text property directly (not a method)
+      setAiInsight(response.text || "تحلیل در دسترس نیست.");
+    } catch (e) {
+      console.error(e);
+      setAiInsight("خطا در برقراری ارتباط با هوش مصنوعی.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   if (samples.length < 2 || !stats) {
     return (
       <div className="p-8 text-center bg-white rounded-xl shadow border border-gray-100">
@@ -54,27 +83,46 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-4 rounded-xl shadow border border-gray-100 flex items-center justify-between">
+      <div className="bg-white p-4 rounded-xl shadow border border-gray-100 flex items-center justify-between flex-wrap gap-4">
         <h2 className="text-xl font-bold flex items-center gap-2">
             <Activity className="text-blue-600"/> تحلیل آماری
         </h2>
-        <select 
-          value={selectedMetric}
-          onChange={(e) => setSelectedMetric(e.target.value as MetricKey)}
-          className="p-2 border rounded-lg bg-gray-50"
-        >
-          {(Object.keys(METRIC_LABELS) as MetricKey[]).map(k => (
-            <option key={k} value={k}>{METRIC_LABELS[k]}</option>
-          ))}
-        </select>
+        <div className="flex gap-3 items-center">
+            <button
+                onClick={getAIInsight}
+                disabled={isAnalyzing}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-lg hover:shadow-lg transition disabled:opacity-50 text-sm font-bold"
+            >
+                {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin"/> : <Sparkles className="w-4 h-4"/>}
+                تحلیل هوشمند (AI)
+            </button>
+            <select 
+                value={selectedMetric}
+                onChange={(e) => setSelectedMetric(e.target.value as MetricKey)}
+                className="p-2 border rounded-lg bg-gray-50 text-sm"
+            >
+                {(Object.keys(METRIC_LABELS) as MetricKey[]).map(k => (
+                    <option key={k} value={k}>{METRIC_LABELS[k]}</option>
+                ))}
+            </select>
+        </div>
       </div>
+
+      {aiInsight && (
+        <div className="bg-blue-900 text-blue-50 p-6 rounded-xl shadow-inner border border-blue-700 animate-in fade-in slide-in-from-top-4 duration-500">
+            <h4 className="flex items-center gap-2 font-black mb-2 text-cyan-300">
+                <Sparkles className="w-4 h-4"/> بینش کارشناس هوش مصنوعی:
+            </h4>
+            <p className="text-sm leading-relaxed font-medium">{aiInsight}</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="میانگین (Mean)" value={stats.mean.toFixed(3)} />
         <StatCard label="میانه (Median)" value={stats.median.toFixed(3)} />
         <StatCard label="انحراف معیار (SD)" value={stats.stdDev.toFixed(3)} />
         <StatCard 
-            label="تست نرمال (Jarque-Bera)" 
+            label="تست نرمال (JB)" 
             value={stats.isNormal ? "نرمال ✅" : "غیر نرمال ❌"} 
             subValue={`JB: ${stats.jarqueBera.toFixed(2)}`}
         />

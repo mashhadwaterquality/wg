@@ -12,14 +12,12 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
   const [endDate, setEndDate] = useState<string>('');
 
   const filteredSamples = samples.filter(s => {
-    // Filter by Sampler
     if (filterSampler !== 'all' && s.samplerId !== filterSampler) {
         return false;
     }
 
     const sampleDate = new Date(s.timestamp);
 
-    // Filter by Start Date (Local Time)
     if (startDate) {
         const parts = startDate.split('-');
         const start = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
@@ -27,7 +25,6 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
         if (sampleDate < start) return false;
     }
 
-    // Filter by End Date (Local Time)
     if (endDate) {
         const parts = endDate.split('-');
         const end = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
@@ -39,14 +36,45 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
   });
 
   const exportCSV = () => {
-    const headers = ["ID,Sampler,Date,Latitude,Longitude,Address,Chlorine,EC,pH,Turbidity,Notes"];
-    const rows = filteredSamples.map(s => 
-      `"${s.id}","${s.samplerId}","${new Date(s.timestamp).toLocaleString('fa-IR')}","${s.location.lat}","${s.location.lng}","${s.location.address || ''}","${s.metrics.chlorine}","${s.metrics.ec}","${s.metrics.ph}","${s.metrics.turbidity}","${s.notes || ''}"`
-    );
+    // Persian Headers for better localization
+    const headers = [
+      "شناسه",
+      "نمونه‌بردار",
+      "تاریخ و زمان",
+      "عرض جغرافیایی",
+      "طول جغرافیایی",
+      "آدرس",
+      "کلر آزاد (mg/L)",
+      "هدایت الکتریکی (µS/cm)",
+      "pH",
+      "کدورت (NTU)",
+      "توضیحات"
+    ].join(",");
+
+    const rows = filteredSamples.map(s => {
+      const dateStr = new Date(s.timestamp).toLocaleString('fa-IR').replace(/,/g, ''); // Remove commas from date string
+      return [
+        `"${s.id}"`,
+        `"${s.samplerId}"`,
+        `"${dateStr}"`,
+        `"${s.location.lat}"`,
+        `"${s.location.lng}"`,
+        `"${(s.location.address || '').replace(/"/g, '""')}"`, // Escape quotes
+        `"${s.metrics.chlorine}"`,
+        `"${s.metrics.ec}"`,
+        `"${s.metrics.ph}"`,
+        `"${s.metrics.turbidity}"`,
+        `"${(s.notes || '').replace(/"/g, '""').replace(/\n/g, ' ')}"` // Escape quotes and newlines
+      ].join(",");
+    });
     
-    // Add BOM for Excel UTF-8 compatibility
-    const csvContent = "\uFEFF" + [headers, ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Combine content with Windows-style line endings
+    const csvContent = [headers, ...rows].join("\r\n");
+    
+    // Create UTF-8 BOM (Byte Order Mark) explicitly as bytes
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
+    
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
@@ -54,6 +82,7 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const clearFilters = () => {
@@ -69,7 +98,6 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
       <div className="p-4 border-b bg-gray-50 flex flex-col md:flex-row gap-4 justify-between items-center">
         
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
-            {/* Sampler Select */}
             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm w-full sm:w-auto">
                 <Filter className="text-gray-400 w-4 h-4" />
                 <select 
@@ -82,7 +110,6 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
                 </select>
             </div>
 
-            {/* Date Inputs */}
             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm w-full sm:w-auto">
                 <Calendar className="text-gray-400 w-4 h-4 shrink-0" />
                 <div className="flex items-center gap-2">
@@ -104,7 +131,6 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
                 </div>
             </div>
 
-            {/* Clear Button */}
             {hasFilters && (
                 <button 
                     onClick={clearFilters}

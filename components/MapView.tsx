@@ -52,9 +52,9 @@ const MapView: React.FC<MapViewProps> = ({ samples }) => {
   }, [samples]);
 
   const samplerColors: Record<string, string> = {
-    'Sampler 1': '#3b82f6',
-    'Sampler 2': '#8b5cf6',
-    'Sampler 3': '#ec4899',
+    'محمدرضا ابتکاری': '#3b82f6',
+    'ابوالفضل شرقی': '#8b5cf6',
+    'سعید محرری': '#ec4899',
   };
 
   const handleShare = () => {
@@ -121,7 +121,7 @@ const MapView: React.FC<MapViewProps> = ({ samples }) => {
             <Polyline 
                 key={sampler} 
                 positions={positions} 
-                pathOptions={{ color: samplerColors[sampler], weight: 3, opacity: 0.7, dashArray: '10, 10' }} 
+                pathOptions={{ color: samplerColors[sampler] || '#cccccc', weight: 3, opacity: 0.7, dashArray: '10, 10' }} 
             />
           ))}
 

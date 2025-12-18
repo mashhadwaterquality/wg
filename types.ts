@@ -1,4 +1,4 @@
-export type SamplerID = 'Sampler 1' | 'Sampler 2' | 'Sampler 3';
+export type SamplerID = 'محمدرضا ابتکاری' | 'ابوالفضل شرقی' | 'سعید محرری';
 
 export interface GeoLocation {
   lat: number;
@@ -46,4 +46,4 @@ export const METRIC_LABELS: Record<MetricKey, string> = {
   turbidity: 'کدورت (NTU)',
 };
 
-export const SAMPLERS: SamplerID[] = ['Sampler 1', 'Sampler 2', 'Sampler 3'];
+export const SAMPLERS: SamplerID[] = ['محمدرضا ابتکاری', 'ابوالفضل شرقی', 'سعید محرری'];
