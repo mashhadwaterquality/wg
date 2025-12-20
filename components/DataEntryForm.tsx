@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { MapPin, Save, RotateCcw, Loader2, AlertCircle, User, Layers, BarChart } from 'lucide-react';
+import { MapPin, Save, RotateCcw, Loader2, AlertCircle, User, Layers, BarChart, CheckCircle2 } from 'lucide-react';
 import { SamplerID, WaterSample, WaterMetrics, GeoLocation, SAMPLERS } from '../types';
 import { getAddressFromCoords, calculateDistance } from '../utils/geo';
 
@@ -16,7 +16,12 @@ const emptyMetrics = {
 };
 
 const DataEntryForm: React.FC<DataEntryFormProps> = ({ onSave, samples }) => {
-  const [samplerId, setSamplerId] = useState<SamplerID>(SAMPLERS[0]);
+  // Persistence: remember the sampler identity
+  const [samplerId, setSamplerId] = useState<SamplerID>(() => {
+    const saved = localStorage.getItem('aquaguard_sampler_id');
+    return (saved as SamplerID) || SAMPLERS[0];
+  });
+  
   const [metrics, setMetrics] = useState(emptyMetrics);
   const [location, setLocation] = useState<GeoLocation | null>(null);
   const [isLocating, setIsLocating] = useState(false);
@@ -25,7 +30,10 @@ const DataEntryForm: React.FC<DataEntryFormProps> = ({ onSave, samples }) => {
   
   const debounceRef = useRef<number | null>(null);
 
-  // Calculate statistics for the summary at the bottom
+  useEffect(() => {
+    localStorage.setItem('aquaguard_sampler_id', samplerId);
+  }, [samplerId]);
+
   const samplerStats = useMemo(() => {
     const stats: Record<string, number> = {};
     SAMPLERS.forEach(s => stats[s] = 0);
@@ -38,9 +46,9 @@ const DataEntryForm: React.FC<DataEntryFormProps> = ({ onSave, samples }) => {
   }, [samples]);
 
   const samplerColors: Record<string, string> = {
-    'محمدرضا ابتکاری': 'bg-blue-50 text-blue-700 border-blue-200',
-    'ابوالفضل شرقی': 'bg-purple-50 text-purple-700 border-purple-200',
-    'سعید محرری': 'bg-pink-50 text-pink-700 border-pink-200',
+    'محمدرضا ابتکاری': 'blue',
+    'ابوالفضل شرقی': 'purple',
+    'سعید محرری': 'pink',
   };
 
   const fetchAddress = useCallback(async (lat: number, lng: number) => {
@@ -110,12 +118,12 @@ const DataEntryForm: React.FC<DataEntryFormProps> = ({ onSave, samples }) => {
       chlorine: parseFloat(metrics.chlorine),
       ec: parseFloat(metrics.ec),
       ph: parseFloat(metrics.ph),
-      turbidity: parseFloat(metrics.turbidity)
+      turbidity: metrics.turbidity !== '' ? parseFloat(metrics.turbidity) : null
     };
 
     if (parsedMetrics.chlorine < 0 || parsedMetrics.chlorine > 5) return alert("مقدار کلر باید بین ۰ و ۵ باشد.");
     if (parsedMetrics.ph < 5 || parsedMetrics.ph > 9) return alert("مقدار pH باید بین ۵ و ۹ باشد.");
-    if (parsedMetrics.turbidity < 0 || parsedMetrics.turbidity > 100) return alert("مقدار کدورت باید بین ۰ و ۱۰۰ باشد.");
+    if (parsedMetrics.turbidity !== null && (parsedMetrics.turbidity < 0 || parsedMetrics.turbidity > 100)) return alert("مقدار کدورت باید بین ۰ و ۱۰۰ باشد.");
     if (parsedMetrics.ec < 0 || parsedMetrics.ec > 5000) return alert("مقدار هدایت الکتریکی باید بین ۰ و ۵۰۰۰ باشد.");
 
     const newSample: WaterSample = {
@@ -140,18 +148,29 @@ const DataEntryForm: React.FC<DataEntryFormProps> = ({ onSave, samples }) => {
           <span className="text-blue-600">📝</span> ثبت نمونه جدید
         </h2>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* SAMPLER SELECTOR */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">نام نمونه‌بردار</label>
-            <select
-              value={samplerId}
-              onChange={(e) => setSamplerId(e.target.value as SamplerID)}
-              className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition font-medium"
-            >
-              {SAMPLERS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <label className="block text-sm font-bold text-gray-700 mb-3">هویت نمونه‌بردار (انتخاب خود را تایید کنید)</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {SAMPLERS.map(s => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSamplerId(s)}
+                  className={`relative p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${samplerId === s ? `border-${samplerColors[s]}-500 bg-${samplerColors[s]}-50 ring-4 ring-${samplerColors[s]}-100` : 'border-gray-100 hover:border-gray-200 text-gray-500'}`}
+                >
+                  <div className={`p-2 rounded-full ${samplerId === s ? `bg-${samplerColors[s]}-500 text-white` : 'bg-gray-100'}`}>
+                    <User className="w-5 h-5" />
+                  </div>
+                  <span className={`text-xs font-black ${samplerId === s ? `text-${samplerColors[s]}-700` : ''}`}>{s}</span>
+                  {samplerId === s && <CheckCircle2 className={`w-4 h-4 absolute top-2 right-2 text-${samplerColors[s]}-500`} />}
+                </button>
+              ))}
+            </div>
           </div>
 
+          {/* LOCATION STATUS */}
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
             <div className="flex items-center justify-between mb-2">
               <span className="font-bold text-blue-800 flex items-center gap-2">
@@ -169,7 +188,7 @@ const DataEntryForm: React.FC<DataEntryFormProps> = ({ onSave, samples }) => {
                   </span>
                 </p>
                 <p className="mt-2 text-gray-500 text-xs border-t border-blue-200 pt-1 leading-relaxed">
-                  {location.address || 'در حال جستجوی آدرس...'}
+                  {location.address || 'در حال دریافت آدرس...'}
                 </p>
               </div>
             ) : (
@@ -180,11 +199,12 @@ const DataEntryForm: React.FC<DataEntryFormProps> = ({ onSave, samples }) => {
             )}
           </div>
 
+          {/* PARAMETERS GRID */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <MetricInput label="کلر آزاد (mg/L)" value={metrics.chlorine} onChange={v => handleInputChange('chlorine', v)} min="0" max="5" step="0.01" placeholder="بازه: ۰ تا ۵" />
-            <MetricInput label="pH" value={metrics.ph} onChange={v => handleInputChange('ph', v)} min="5" max="9" step="0.1" placeholder="بازه: ۵ تا ۹" />
-            <MetricInput label="کدورت (NTU)" value={metrics.turbidity} onChange={v => handleInputChange('turbidity', v)} min="0" max="100" step="0.1" placeholder="بازه: ۰ تا ۱۰۰" />
-            <MetricInput label="هدایت الکتریکی (µS/cm)" value={metrics.ec} onChange={v => handleInputChange('ec', v)} min="0" max="5000" step="1" placeholder="بازه: ۰ تا ۵۰۰۰" />
+            <MetricInput label="کلر آزاد (mg/L)" value={metrics.chlorine} onChange={v => handleInputChange('chlorine', v)} min="0" max="5" step="0.01" placeholder="بازه: ۰ تا ۵" required />
+            <MetricInput label="pH" value={metrics.ph} onChange={v => handleInputChange('ph', v)} min="5" max="9" step="0.01" placeholder="بازه: ۵ تا ۹" required />
+            <MetricInput label="کدورت (NTU) - اختیاری" value={metrics.turbidity} onChange={v => handleInputChange('turbidity', v)} min="0" max="100" step="0.01" placeholder="بازه: ۰ تا ۱۰۰" required={false} />
+            <MetricInput label="هدایت الکتریکی (µS/cm)" value={metrics.ec} onChange={v => handleInputChange('ec', v)} min="0" max="5000" step="0.01" placeholder="بازه: ۰ تا ۵۰۰۰" required />
           </div>
 
           <div>
@@ -198,17 +218,17 @@ const DataEntryForm: React.FC<DataEntryFormProps> = ({ onSave, samples }) => {
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={() => { setMetrics(emptyMetrics); setNotes(''); }} className="flex-1 py-3 px-4 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition flex items-center justify-center gap-2 font-bold shadow-sm">
+            <button type="button" onClick={() => { setMetrics(emptyMetrics); setNotes(''); }} className="flex-1 py-4 px-4 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition flex items-center justify-center gap-2 font-bold shadow-sm">
               <RotateCcw className="w-5 h-5" /> پاک کردن
             </button>
-            <button type="submit" disabled={!location} className={`flex-1 py-3 px-4 rounded-lg text-white font-bold shadow-md transition flex items-center justify-center gap-2 ${location ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`}>
+            <button type="submit" disabled={!location} className={`flex-1 py-4 px-4 rounded-xl text-white font-bold shadow-lg transition flex items-center justify-center gap-2 ${location ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`}>
               <Save className="w-5 h-5" /> ثبت و ارسال داده
             </button>
           </div>
         </form>
       </div>
 
-      {/* Summary Section at the End of the Form */}
+      {/* Summary Section */}
       <div className="mt-4 pt-6 border-t border-gray-100">
         <div className="flex items-center gap-2 mb-4 text-gray-800 font-black text-lg">
           <BarChart className="w-5 h-5 text-blue-600" />
@@ -216,28 +236,29 @@ const DataEntryForm: React.FC<DataEntryFormProps> = ({ onSave, samples }) => {
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Total Badge */}
           <div className="bg-blue-900 text-white p-4 rounded-xl flex flex-col items-center justify-center gap-1 shadow-md">
             <Layers className="w-6 h-6 text-cyan-400 mb-1" />
             <span className="text-xs opacity-80">کل نمونه‌های ثبت شده</span>
             <span className="text-3xl font-black">{samples.length}</span>
           </div>
 
-          {/* Individual Samplers */}
-          {SAMPLERS.map(s => (
-            <div key={s} className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-1 shadow-sm transition hover:shadow-md ${samplerColors[s] || 'bg-gray-50 text-gray-700'}`}>
-              <User className="w-5 h-5 mb-1 opacity-70" />
-              <span className="text-xs font-bold text-center">{s}</span>
-              <span className="text-2xl font-black">{samplerStats[s]}</span>
-            </div>
-          ))}
+          {SAMPLERS.map(s => {
+             const c = samplerColors[s];
+             return (
+              <div key={s} className={`p-4 rounded-xl border flex flex-col items-center justify-center gap-1 shadow-sm transition hover:shadow-md bg-${c}-50 text-${c}-700 border-${c}-200`}>
+                <User className="w-5 h-5 mb-1 opacity-70" />
+                <span className="text-xs font-bold text-center">{s}</span>
+                <span className="text-2xl font-black">{samplerStats[s]}</span>
+              </div>
+             );
+          })}
         </div>
       </div>
     </div>
   );
 };
 
-const MetricInput: React.FC<{ label: string; value: string; onChange: (v: string) => void; min: string; max: string; step: string; placeholder: string }> = ({ label, value, onChange, min, max, step, placeholder }) => (
+const MetricInput: React.FC<{ label: string; value: string; onChange: (v: string) => void; min: string; max: string; step: string; placeholder: string; required: boolean }> = ({ label, value, onChange, min, max, step, placeholder, required }) => (
   <div>
     <label className="block text-sm font-medium text-gray-700 mb-1 font-bold">{label}</label>
     <input
@@ -248,8 +269,8 @@ const MetricInput: React.FC<{ label: string; value: string; onChange: (v: string
       placeholder={placeholder}
       value={value}
       onChange={e => onChange(e.target.value)}
-      className="w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition placeholder:text-gray-300 text-sm"
-      required
+      className={`w-full p-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition placeholder:text-gray-300 text-sm ${!required ? 'bg-gray-50/50' : 'bg-white'}`}
+      required={required}
     />
   </div>
 );

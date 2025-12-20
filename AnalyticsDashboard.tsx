@@ -5,14 +5,14 @@ import {
   Legend, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   ScatterChart, Scatter, Cell
 } from 'recharts';
-import { WaterSample, MetricKey, METRIC_LABELS, SAMPLERS } from '../types';
+import { WaterSample, MetricKey, METRIC_LABELS, SAMPLERS } from './types';
 import { 
   calculateStats, 
   calculateBenfordAnalysis, 
   calculateQQDataFromSamples,
   calculateCorrelation
-} from '../utils/statistics';
-import { calculateDistance } from '../utils/geo';
+} from './utils/statistics';
+import { calculateDistance } from './utils/geo';
 import { 
   BarChart3, Sparkles, Loader2,
   Trophy, Award, Medal,
@@ -31,7 +31,6 @@ interface SamplerDailyStat {
   sampleCount: number;
 }
 
-// Fixed: Added explicit interface to resolve 'unknown' property access errors
 interface RankingItem {
   samplerId: string;
   globalScore: number;
@@ -180,7 +179,6 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
     return violations;
   }, [samples]);
 
-  // Fixed: Added explicit return type to rankingData for safer property access
   const rankingData = useMemo<RankingItem[]>(() => {
     return SAMPLERS.map(samplerId => {
       const samplerSamples = samples.filter(s => s.samplerId === samplerId);
@@ -205,11 +203,17 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
     setIsAnalyzing(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const context = `Water Quality Forensics Dashboard. Analysis of ${samples.length} samples. Provide a professional 2-sentence quality report in Persian. Highlighting sampler ${rankingData[0]?.samplerId} and detected anomalies count: ${gradientViolations.length}.`;
-      const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: context });
+      const context = `Water Quality Forensics Dashboard. Analysis of ${samples.length} samples. Detected anomalies: ${gradientViolations.length}. Best performing sampler: ${rankingData[0]?.samplerId}. Provide a professional 2-sentence quality report in Persian summarizing the overall health and sampler integrity.`;
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: [{ parts: [{ text: context }] }],
+      });
+      
       setAiInsight(response.text || "تحلیل در دسترس نیست.");
     } catch (e) {
-      setAiInsight("خطا: کلید API فعال نیست.");
+      console.error("AI Analysis Error:", e);
+      setAiInsight("خطا در ارتباط با هوش مصنوعی. لطفاً دوباره تلاش کنید.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -217,7 +221,6 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
 
   return (
     <div className="space-y-6">
-      {/* TABS HEADER */}
       <div className="flex bg-gray-100 p-1 rounded-xl w-full sm:w-max overflow-x-auto no-scrollbar shadow-inner">
         <button onClick={() => setActiveSubTab('integrity')} className={`flex-none px-6 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${activeSubTab === 'integrity' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
           <Trophy className="w-4 h-4" /> رتبه‌بندی
@@ -239,7 +242,6 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
         </button>
       </div>
 
-      {/* TOOLBAR */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
             <div className="p-3 rounded-xl bg-gray-50 text-gray-800 border">
@@ -266,7 +268,7 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
         </div>
       )}
 
-      {/* DISTRIBUTION TAB */}
+      {/* TABS CONTENT */}
       {activeSubTab === 'distribution' && (
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 space-y-6">
           <h3 className="font-black text-gray-800 flex items-center gap-2">
@@ -289,7 +291,6 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
         </div>
       )}
 
-      {/* CORRELATION TAB */}
       {activeSubTab === 'correlation' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {correlationData.map((sampler, idx) => (
@@ -318,15 +319,11 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
                   <div className="flex items-center justify-center h-full text-xs text-gray-400 italic">داده کافی موجود نیست</div>
                 )}
               </div>
-              <p className="mt-2 text-[10px] text-gray-500 font-bold text-center">
-                همبستگی پارامترها (۰ تا ۱۰۰٪)
-              </p>
             </div>
           ))}
         </div>
       )}
 
-      {/* FORENSICS TAB */}
       {activeSubTab === 'forensics' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -347,9 +344,6 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
                       </BarChart>
                   </ResponsiveContainer>
               </div>
-              <p className="mt-4 text-[11px] text-gray-500 leading-relaxed font-medium">
-                قانون بنفورد بیان می‌کند که در مجموعه‌های داده‌های طبیعی، رقم ۱ بیشتر از سایر ارقام ظاهر می‌شود. انحراف شدید از این توزیع می‌تواند نشانه دستکاری داده باشد.
-              </p>
             </div>
 
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
@@ -368,9 +362,7 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
                       </thead>
                       <tbody className="divide-y">
                           {gradientViolations.length === 0 ? (
-                            <tr>
-                              <td colSpan={4} className="p-12 text-center text-gray-400 italic">مورد مشکوکی یافت نشد.</td>
-                            </tr>
+                            <tr><td colSpan={4} className="p-12 text-center text-gray-400 italic">مورد مشکوکی یافت نشد.</td></tr>
                           ) : (
                             gradientViolations.map((v, i) => (
                                 <tr key={i} className="hover:bg-red-50/30 transition">
@@ -384,106 +376,11 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
                       </tbody>
                   </table>
               </div>
-              <p className="mt-4 text-[11px] text-gray-500 leading-relaxed font-medium">
-                این بخش تغییرات ناگهانی و غیرمنطقی پارامترها را در فواصل مکانی کوتاه شناسایی می‌کند.
-              </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* STATS / NORMALITY TAB */}
-      {activeSubTab === 'stats' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white p-6 rounded-3xl border shadow-sm">
-            <h3 className="font-black text-gray-800 mb-6 text-sm flex items-center gap-2">
-                <Activity className="w-4 h-4 text-blue-500" /> نمودار Q-Q (برازش نرمال بر اساس نمونه‌بردار)
-            </h3>
-            <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                        <XAxis type="number" dataKey="x" name="Theoretical Quantile" fontSize={10} stroke="#94a3b8" />
-                        <YAxis type="number" dataKey="y" name="Observed Value" fontSize={10} stroke="#94a3b8" />
-                        <RechartsTooltip 
-                            cursor={{ strokeDasharray: '3 3' }}
-                            contentStyle={{ borderRadius: '12px', border: 'none', direction: 'rtl', textAlign: 'right' }}
-                            formatter={(value: any, name: string) => [Number(value).toFixed(2), name === 'x' ? 'نظری' : 'واقعی']}
-                        />
-                        <Legend verticalAlign="top" height={36} iconType="diamond" />
-                        <Scatter name="توزیع نمونه‌ها" data={qqData}>
-                            {qqData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={samplerColors[entry.samplerId] || '#cbd5e1'} />
-                            ))}
-                        </Scatter>
-                    </ScatterChart>
-                </ResponsiveContainer>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-4 justify-center">
-                {SAMPLERS.map(s => (
-                    <div key={s} className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: samplerColors[s] }}></div>
-                        <span className="text-[10px] font-bold text-gray-500">{s}</span>
-                    </div>
-                ))}
-            </div>
-          </div>
-          <div className="bg-gray-900 text-white p-6 rounded-3xl shadow-xl space-y-4">
-            <h3 className="font-black border-b border-white/10 pb-4 text-cyan-400">شاخص‌های توزیع</h3>
-            <div className="flex justify-between"><span>میانگین کل</span><span className="font-black text-cyan-300">{stats?.mean.toFixed(3)}</span></div>
-            <div className="flex justify-between"><span>انحراف معیار</span><span className="font-black text-cyan-300">{stats?.stdDev.toFixed(3)}</span></div>
-            <div className="flex justify-between"><span>Jarque-Bera</span><span className="font-black text-cyan-300">{stats?.jarqueBera.toFixed(2)}</span></div>
-            <div className={`mt-4 text-center px-3 py-2 rounded-xl font-black text-xs ${stats?.isNormal ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                {stats?.isNormal ? 'توزیع طبیعی' : 'توزیع غیرطبیعی'}
-            </div>
-            <div className="pt-4 border-t border-white/5 space-y-2">
-              <p className="text-[10px] text-gray-400 leading-relaxed italic">
-                آزمون جارک-برا برای بررسی نرمال بودن توزیع داده‌ها استفاده می‌شود. مقدار کمتر از ۵.۹۹ معمولاً به معنای توزیع نرمال است.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* OPERATIONAL TAB */}
-      {activeSubTab === 'operational' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {SAMPLERS.map(samplerId => (
-            <div key={samplerId} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 space-y-4">
-              <h3 className="font-black text-gray-800 border-b pb-4 flex items-center justify-between" style={{ color: samplerColors[samplerId] }}>
-                <span>{samplerId}</span>
-                <Timer className="w-4 h-4 opacity-50" />
-              </h3>
-              <div className="space-y-3">
-                {operationalStats[samplerId]?.length === 0 ? (
-                  <div className="text-center py-8 text-gray-400 text-xs italic">سوابقی یافت نشد</div>
-                ) : (
-                  operationalStats[samplerId].map((day, idx) => (
-                    <div key={idx} className="bg-gray-50 p-4 rounded-2xl border border-gray-100 hover:border-blue-200 transition">
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-[10px] font-black text-gray-400 uppercase">{day.date}</span>
-                        <span className="bg-white px-2 py-0.5 rounded-full text-[10px] border font-bold shadow-sm">{day.sampleCount} نمونه</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 text-xs font-black">
-                        <div>
-                          <span className="text-[9px] text-gray-400 block mb-1">متوسط زمان (دقیقه)</span> 
-                          <span className="text-blue-700">{day.avgTime.toFixed(1)}</span>
-                        </div>
-                        <div>
-                          <span className="text-[9px] text-gray-400 block mb-1">متوسط فاصله (متر)</span> 
-                          <span className="text-blue-700">{Math.round(day.avgDist)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* RANKING / INTEGRITY TAB */}
       {activeSubTab === 'integrity' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-end pt-12">
           <RankingCard rank={2} data={rankingData[1]} color="border-gray-200 bg-gray-50/50" icon={<Medal className="w-10 h-10 text-gray-400" />} badgeColor="bg-gray-400" samplerColor={samplerColors[rankingData[1]?.samplerId]} />
@@ -497,7 +394,6 @@ const AnalyticsDashboard: React.FC<AnalyticsProps> = ({ samples }) => {
   );
 };
 
-// Fixed: Explicitly typed 'data' prop to resolve 'Property violations does not exist on type unknown' errors
 const RankingCard: React.FC<{ 
   rank: number; 
   data: RankingItem | undefined; 
@@ -512,7 +408,6 @@ const RankingCard: React.FC<{
     <div className="mb-6">{icon}</div>
     <h3 className="text-xl font-black text-gray-800 mb-2" style={{ color: samplerColor }}>{data?.samplerId || 'درحال ممیزی'}</h3>
     <div className="grid grid-cols-2 gap-3 w-full mb-6 mt-4">
-        {/* Fixed: Properties now safely accessible on Typed RankingItem */}
         <div className="bg-gray-50 p-2.5 rounded-2xl text-center"><span className="text-[9px] text-gray-400 block font-bold">تخلفات</span><span className="text-sm font-black text-red-600">{data?.violations || 0}</span></div>
         <div className="bg-gray-50 p-2.5 rounded-2xl text-center"><span className="text-[9px] text-gray-400 block font-bold">نمونه‌ها</span><span className="text-sm font-black">{data?.totalSamples || 0}</span></div>
     </div>

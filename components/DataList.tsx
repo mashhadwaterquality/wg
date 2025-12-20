@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { WaterSample, SAMPLERS } from '../types';
-import { Filter, FileSpreadsheet, Calendar, X } from 'lucide-react';
+import { Filter, FileSpreadsheet, Calendar, X, MapPin } from 'lucide-react';
 
 interface DataListProps {
   samples: WaterSample[];
@@ -36,7 +36,6 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
   });
 
   const exportCSV = () => {
-    // Persian Headers for better localization
     const headers = [
       "شناسه",
       "نمونه‌بردار",
@@ -52,26 +51,23 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
     ].join(",");
 
     const rows = filteredSamples.map(s => {
-      const dateStr = new Date(s.timestamp).toLocaleString('fa-IR').replace(/,/g, ''); // Remove commas from date string
+      const dateStr = new Date(s.timestamp).toLocaleString('fa-IR').replace(/,/g, '');
       return [
         `"${s.id}"`,
         `"${s.samplerId}"`,
         `"${dateStr}"`,
         `"${s.location.lat}"`,
         `"${s.location.lng}"`,
-        `"${(s.location.address || '').replace(/"/g, '""')}"`, // Escape quotes
+        `"${(s.location.address || '').replace(/"/g, '""')}"`,
         `"${s.metrics.chlorine}"`,
         `"${s.metrics.ec}"`,
         `"${s.metrics.ph}"`,
-        `"${s.metrics.turbidity}"`,
-        `"${(s.notes || '').replace(/"/g, '""').replace(/\n/g, ' ')}"` // Escape quotes and newlines
+        `"${s.metrics.turbidity ?? ''}"`,
+        `"${(s.notes || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`
       ].join(",");
     });
     
-    // Combine content with Windows-style line endings
     const csvContent = [headers, ...rows].join("\r\n");
-    
-    // Create UTF-8 BOM (Byte Order Mark) explicitly as bytes
     const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
     const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
     
@@ -118,7 +114,6 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
                         value={startDate}
                         onChange={e => setStartDate(e.target.value)}
                         className="text-sm outline-none bg-transparent w-full sm:w-32"
-                        title="از تاریخ"
                     />
                     <span className="text-gray-400">تا</span>
                     <input 
@@ -126,7 +121,6 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
                         value={endDate}
                         onChange={e => setEndDate(e.target.value)}
                         className="text-sm outline-none bg-transparent w-full sm:w-32"
-                        title="تا تاریخ"
                     />
                 </div>
             </div>
@@ -152,30 +146,39 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-right">
-            <thead className="bg-gray-100 text-gray-700">
+            <thead className="bg-gray-100 text-gray-700 text-xs uppercase font-black">
                 <tr>
-                    <th className="p-3">زمان</th>
-                    <th className="p-3">نمونه‌بردار</th>
-                    <th className="p-3">کلر (mg/L)</th>
-                    <th className="p-3">pH</th>
-                    <th className="p-3">مکان</th>
+                    <th className="p-4 border-b">زمان</th>
+                    <th className="p-4 border-b">نمونه‌بردار</th>
+                    <th className="p-4 border-b text-blue-600">کلر (mg/L)</th>
+                    <th className="p-4 border-b text-indigo-600">EC (µS/cm)</th>
+                    <th className="p-4 border-b text-teal-600">pH</th>
+                    <th className="p-4 border-b text-orange-600">کدورت (NTU)</th>
+                    <th className="p-4 border-b">مکان و آدرس</th>
                 </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
                 {filteredSamples.length === 0 ? (
                     <tr>
-                        <td colSpan={5} className="p-8 text-center text-gray-500">
+                        <td colSpan={7} className="p-8 text-center text-gray-500 italic">
                             {samples.length === 0 ? 'داده‌ای یافت نشد.' : 'با فیلترهای انتخاب شده داده‌ای یافت نشد.'}
                         </td>
                     </tr>
                 ) : filteredSamples.map(sample => (
-                    <tr key={sample.id} className="hover:bg-blue-50 transition">
-                        <td className="p-3 whitespace-nowrap">{new Date(sample.timestamp).toLocaleString('fa-IR')}</td>
-                        <td className="p-3 font-medium">{sample.samplerId}</td>
-                        <td className="p-3 text-blue-600 font-bold">{sample.metrics.chlorine}</td>
-                        <td className="p-3">{sample.metrics.ph}</td>
-                        <td className="p-3 truncate max-w-[200px]" title={sample.location.address}>
-                            {sample.location.address || `${sample.location.lat.toFixed(4)}, ${sample.location.lng.toFixed(4)}`}
+                    <tr key={sample.id} className="hover:bg-blue-50/50 transition">
+                        <td className="p-4 whitespace-nowrap text-[11px] font-bold text-gray-500">{new Date(sample.timestamp).toLocaleString('fa-IR')}</td>
+                        <td className="p-4 font-black text-gray-800">{sample.samplerId}</td>
+                        <td className="p-4 text-blue-700 font-black">{sample.metrics.chlorine.toFixed(2)}</td>
+                        <td className="p-4 text-indigo-700 font-black">{sample.metrics.ec.toFixed(0)}</td>
+                        <td className="p-4 text-teal-700 font-black">{sample.metrics.ph.toFixed(2)}</td>
+                        <td className="p-4 text-orange-700 font-black">{sample.metrics.turbidity !== null && sample.metrics.turbidity !== undefined ? sample.metrics.turbidity.toFixed(2) : '-'}</td>
+                        <td className="p-4 max-w-[240px]">
+                            <div className="flex items-start gap-1">
+                                <MapPin className="w-3 h-3 text-gray-400 mt-1 shrink-0" />
+                                <span className="text-[10px] text-gray-500 leading-relaxed line-clamp-2" title={sample.location.address}>
+                                    {sample.location.address || `${sample.location.lat.toFixed(4)}, ${sample.location.lng.toFixed(4)}`}
+                                </span>
+                            </div>
                         </td>
                     </tr>
                 ))}
@@ -183,8 +186,8 @@ const DataList: React.FC<DataListProps> = ({ samples }) => {
         </table>
       </div>
       
-      <div className="bg-gray-50 p-2 text-xs text-gray-500 text-center border-t">
-          تعداد ردیف: {filteredSamples.length}
+      <div className="bg-gray-50 p-3 text-[10px] font-black text-gray-400 text-center border-t uppercase tracking-widest">
+          Total Records: {filteredSamples.length}
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
-
-import { StatResult } from '../types';
+import { StatResult, WaterSample, MetricKey } from '../types';
+import { calculateDistance } from './geo';
 
 function getZPercentile(p: number): number {
   const a1 = -39.69683028665376;
@@ -40,26 +40,27 @@ function getZPercentile(p: number): number {
 }
 
 export const calculateStats = (data: number[]): StatResult | null => {
-  const n = data.length;
+  const filteredData = data.filter(v => v !== null && v !== undefined);
+  const n = filteredData.length;
   if (n < 2) return null;
 
-  const sorted = [...data].sort((a, b) => a - b);
+  const sorted = [...filteredData].sort((a, b) => a - b);
   const min = sorted[0];
   const max = sorted[n - 1];
-  const sum = data.reduce((a, b) => a + b, 0);
+  const sum = filteredData.reduce((a, b) => a + b, 0);
   const mean = sum / n;
   
   const mid = Math.floor(n / 2);
   const median = n % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 
-  const variance = data.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (n - 1);
+  const variance = filteredData.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (n - 1);
   const stdDev = Math.sqrt(variance);
   const marginError = 1.96 * (stdDev / Math.sqrt(n));
   const confidenceInterval: [number, number] = [mean - marginError, mean + marginError];
 
   let m3 = 0;
   let m4 = 0;
-  data.forEach(x => {
+  filteredData.forEach(x => {
     const d = x - mean;
     m3 += Math.pow(d, 3);
     m4 += Math.pow(d, 4);
@@ -74,39 +75,49 @@ export const calculateStats = (data: number[]): StatResult | null => {
   const jb = (n / 6) * (Math.pow(skewness, 2) + 0.25 * Math.pow(kurtosis, 2));
   const isNormal = jb < 5.99;
 
-  return {
-    mean,
-    median,
-    stdDev,
-    min,
-    max,
-    confidenceInterval,
-    skewness,
-    kurtosis,
-    jarqueBera: jb,
-    isNormal
-  };
+  return { mean, median, stdDev, min, max, confidenceInterval, skewness, kurtosis, jarqueBera: jb, isNormal };
+};
+
+export const calculateLastDigitDistribution = (data: number[]) => {
+  const actual = Array(10).fill(0);
+  let count = 0;
+  data.forEach(val => {
+    const s = val.toFixed(2);
+    const digit = parseInt(s[s.length - 1]);
+    if (!isNaN(digit)) {
+      actual[digit]++;
+      count++;
+    }
+  });
+  if (count === 0) return Array(10).fill(0).map((_, i) => ({ digit: i, percentage: 0, expected: 10 }));
+  return actual.map((val, i) => ({
+    digit: i,
+    percentage: (val / count) * 100,
+    expected: 10
+  }));
+};
+
+export const calculateDigitPreferenceScore = (data: number[]) => {
+  const dist = calculateLastDigitDistribution(data);
+  const totalDeviation = dist.reduce((acc, curr) => acc + Math.abs(curr.percentage - 10), 0);
+  return Math.max(0, 100 - (totalDeviation * 2));
 };
 
 export const calculateCorrelation = (x: number[], y: number[]): number => {
-  const n = x.length;
-  if (n !== y.length || n < 2) return 0;
-  
-  const meanX = x.reduce((a, b) => a + b, 0) / n;
-  const meanY = y.reduce((a, b) => a + b, 0) / n;
-  
-  let num = 0;
-  let denX = 0;
-  let denY = 0;
-  
+  const xF = x.filter((_, i) => x[i] != null && y[i] != null);
+  const yF = y.filter((_, i) => x[i] != null && y[i] != null);
+  const n = xF.length;
+  if (n < 2) return 0;
+  const meanX = xF.reduce((a, b) => a + b, 0) / n;
+  const meanY = yF.reduce((a, b) => a + b, 0) / n;
+  let num = 0, denX = 0, denY = 0;
   for (let i = 0; i < n; i++) {
-    const dx = x[i] - meanX;
-    const dy = y[i] - meanY;
+    const dx = xF[i] - meanX;
+    const dy = yF[i] - meanY;
     num += dx * dy;
     denX += dx * dx;
     denY += dy * dy;
   }
-  
   const den = Math.sqrt(denX) * Math.sqrt(denY);
   return den === 0 ? 0 : num / den;
 };
@@ -115,20 +126,17 @@ export const calculateBenfordAnalysis = (data: number[]) => {
   const expected = [0, 30.1, 17.6, 12.5, 9.7, 7.9, 6.7, 5.8, 5.1, 4.6];
   const actual = Array(10).fill(0);
   let count = 0;
-
   data.forEach(val => {
-    const s = Math.abs(val).toString().replace(/[0.]/g, '');
+    const s = Math.abs(val!).toString().replace(/[0.]/g, '');
     if (s.length > 0) {
       const firstDigit = parseInt(s[0]);
-      if (firstDigit >= 0 && firstDigit <= 9) {
+      if (firstDigit >= 1 && firstDigit <= 9) {
         actual[firstDigit]++;
         count++;
       }
     }
   });
-
   if (count === 0) return [];
-
   return actual.map((val, i) => ({
     digit: i,
     actual: (val / count) * 100,
@@ -136,39 +144,33 @@ export const calculateBenfordAnalysis = (data: number[]) => {
   })).slice(1);
 };
 
-export const calculateLastDigitDistribution = (data: number[]) => {
-  const counts = Array(10).fill(0);
-  let total = 0;
+export const calculateSpatialAnomalyScore = (sample: WaterSample, neighbors: WaterSample[], metric: MetricKey) => {
+  if (neighbors.length === 0) return 0;
+  const val = sample.metrics[metric] as number;
+  if (val === null || val === undefined) return 0;
+  
+  const distances = neighbors.map(n => ({
+    dist: calculateDistance(sample.location.lat, sample.location.lng, n.location.lat, n.location.lng),
+    val: n.metrics[metric] as number
+  })).filter(d => d.val !== null);
 
-  data.forEach(val => {
-    const str = val.toFixed(2);
-    const lastDigit = parseInt(str[str.length - 1]);
-    if (!isNaN(lastDigit)) {
-      counts[lastDigit]++;
-      total++;
-    }
-  });
+  distances.sort((a, b) => a.dist - b.dist);
+  const nearest = distances.slice(0, 3);
+  if (nearest.length === 0) return 0;
 
-  if (total === 0) return [];
-  return counts.map((count, digit) => ({
-    digit,
-    frequency: (count / total) * 100,
-    ideal: 10 // Ideal random distribution is 10% each
-  }));
+  const avgNeighbor = nearest.reduce((a, b) => a + b.val, 0) / nearest.length;
+  const diff = Math.abs(val - avgNeighbor);
+  // Anomaly if difference is > 2 standard deviations of the neighbors (mock check)
+  return diff;
 };
 
-export const calculateZScores = (data: number[]) => {
-  const stats = calculateStats(data);
-  if (!stats) return [];
-  return data.map(val => (val - stats.mean) / (stats.stdDev || 1));
-};
-
-export const calculateQQData = (data: number[]) => {
-  const sorted = [...data].sort((a, b) => a - b);
-  const n = sorted.length;
-  return sorted.map((value, i) => {
-    const p = (i + 0.5) / n; 
-    const theoretical = getZPercentile(p);
-    return { x: theoretical, y: value, index: i };
+export const calculateQQDataFromSamples = (samples: WaterSample[], metric: MetricKey) => {
+  const filtered = samples
+    .filter(s => s.metrics[metric] !== null && s.metrics[metric] !== undefined)
+    .sort((a, b) => (a.metrics[metric] as number) - (b.metrics[metric] as number));
+  const n = filtered.length;
+  return filtered.map((sample, i) => {
+    const theoretical = getZPercentile((i + 0.5) / n);
+    return { x: theoretical, y: sample.metrics[metric], samplerId: sample.samplerId };
   });
 };
