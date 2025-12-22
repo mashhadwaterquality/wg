@@ -47,7 +47,7 @@ const DataEntryForm: React.FC<DataEntryFormProps> = ({ onSave, samples }) => {
 
   const samplerColors: Record<string, string> = {
     'محمدرضا ابتکاری': 'blue',
-    'ابوالفضل شرقی': 'purple',
+    'ابوالفضل شرقی': 'orange',
     'سعید محرری': 'pink',
   };
 
